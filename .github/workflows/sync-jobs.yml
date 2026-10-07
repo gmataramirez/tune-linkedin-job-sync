@@ -1,16 +1,31 @@
-name: Test LinkedIn retrieval
+name: Retrieve Tune jobs
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
 
 permissions:
   contents: read
 
+concurrency:
+  group: tune-job-retrieval
+  cancel-in-progress: false
+
 jobs:
-  test:
+  retrieve:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Fetch Tune job listings
         run: |
           curl --fail-with-body --location --compressed \
@@ -21,27 +36,16 @@ jobs:
             --write-out '\nHTTP status: %{http_code}\nFinal URL: %{url_effective}\n' \
             "https://www.linkedin.com/jobs/search/?f_C=95722057"
 
-      - name: Show returned job links
-        run: |
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
+      - name: Generate jobs JSON
+        run: node scripts/sync-jobs.mjs
 
-          html = Path("tune-jobs.html").read_text()
-          links = sorted(set(re.findall(
-              r'https://[^"<> ]*linkedin\.com/jobs/view/[^"?<> ]+',
-              html
-          )))
-
-          print(f"Found {len(links)} distinct job links")
-          for link in links:
-              print(link)
-
-          if not links:
-              raise SystemExit(
-                  "No job links returned. Inspect the HTML before proceeding."
-              )
-          PY
+      - name: Save jobs JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: tune-jobs
+          path: output/jobs.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Save response for inspection
         if: always()
@@ -50,3 +54,4 @@ jobs:
           name: linkedin-response
           path: tune-jobs.html
           if-no-files-found: ignore
+          retention-days: 3
