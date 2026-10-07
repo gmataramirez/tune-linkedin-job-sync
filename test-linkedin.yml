@@ -1,1 +1,52 @@
+name: Test LinkedIn retrieval
 
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch Tune job listings
+        run: |
+          curl --fail-with-body --location --compressed \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --user-agent "Mozilla/5.0" \
+            --output tune-jobs.html \
+            --write-out '\nHTTP status: %{http_code}\nFinal URL: %{url_effective}\n' \
+            "https://www.linkedin.com/jobs/search/?f_C=95722057"
+
+      - name: Show returned job links
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          html = Path("tune-jobs.html").read_text()
+          links = sorted(set(re.findall(
+              r'https://[^"<> ]*linkedin\.com/jobs/view/[^"?<> ]+',
+              html
+          )))
+
+          print(f"Found {len(links)} distinct job links")
+          for link in links:
+              print(link)
+
+          if not links:
+              raise SystemExit(
+                  "No job links returned. Inspect the HTML before proceeding."
+              )
+          PY
+
+      - name: Save response for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-response
+          path: tune-jobs.html
+          if-no-files-found: ignore
