@@ -36,7 +36,10 @@ jobs:
             --write-out '\nHTTP status: %{http_code}\nFinal URL: %{url_effective}\n' \
             "https://www.linkedin.com/jobs/search/?f_C=95722057"
 
-      - name: Generate jobs JSON
+      - name: Retrieve and sync jobs
+        env:
+          WEBFLOW_API_TOKEN: ${{ secrets.WEBFLOW_API_TOKEN }}
+          WEBFLOW_COLLECTION_ID: ${{ secrets.WEBFLOW_COLLECTION_ID }}
         run: node scripts/sync-jobs.mjs
 
       - name: Save jobs JSON
